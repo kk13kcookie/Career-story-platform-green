@@ -70,6 +70,15 @@
 - 認証状態管理の基盤
 - セキュアなAPI ルート
 
+#### ✅ テスト完了項目
+- **メール認証**: 新規登録・ログイン動作確認済み
+- **データベース接続**: Supabase接続成功
+- **UI/UX**: レスポンシブデザイン確認済み
+
+#### 🔍 判明した課題
+- **Google OAuth**: Supabase Dashboard でプロバイダー有効化が必要
+- **GitHub OAuth**: 同様にプロバイダー設定要確認
+
 ---
 
 ## 現在の状態
@@ -81,13 +90,20 @@
 - [x] Supabase統合
 
 ### 🚧 次の開発予定
-- [ ] OAuth プロバイダー設定（Google, GitHub）
+
+**最優先タスク:**
+- [ ] Google OAuth プロバイダー設定・テスト
+- [ ] GitHub OAuth プロバイダー設定・テスト  
 - [ ] 認証状態管理（AuthProvider/Context）
-- [ ] 投稿機能の実装
+
+**中期タスク:**
+- [ ] 投稿機能の実装（実際のデータベース連携）
 - [ ] プロフィール機能
 - [ ] いいね・コメント機能
 - [ ] フォロー機能
 - [ ] 検索・フィルター機能
+
+**後期タスク:**
 - [ ] 通知システム
 - [ ] プレミアム機能（メンター）
 - [ ] 画像アップロード
@@ -99,9 +115,9 @@
 
 **必要な環境変数 (`.env.local`):**
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://uzvixvqjlorureqceoxi.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=[設定済み]
-SUPABASE_SERVICE_ROLE_KEY=[設定済み]
+NEXT_PUBLIC_SUPABASE_URL=https://[your-project-ref].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[your-anon-key]
+SUPABASE_SERVICE_ROLE_KEY=[your-service-role-key]
 ```
 
 **コマンド:**
