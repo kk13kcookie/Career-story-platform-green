@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/components/auth/auth-provider"
+import { createPost, fetchPosts, type Post } from "@/lib/api/posts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -127,12 +129,17 @@ const mentors = [
 ]
 
 export default function CareerStoryPlatform() {
+  const { user, loading, signOut } = useAuth()
   const [activeTab, setActiveTab] = useState("すべて")
   const [showPostForm, setShowPostForm] = useState(false)
   const [newStory, setNewStory] = useState("")
+  const [postTitle, setPostTitle] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("成功体験")
   const [expandedPosts, setExpandedPosts] = useState<Set<number>>(new Set())
   const [showLoginDialog, setShowLoginDialog] = useState(false)
+  const [posts, setPosts] = useState<Post[]>([])
+  const [loadingPosts, setLoadingPosts] = useState(true)
+  const [submittingPost, setSubmittingPost] = useState(false)
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -175,7 +182,7 @@ export default function CareerStoryPlatform() {
     }
   }
 
-  const toggleExpanded = (postId: number) => {
+  const toggleExpanded = (postId: string) => {
     const newExpanded = new Set(expandedPosts)
     if (newExpanded.has(postId)) {
       newExpanded.delete(postId)
@@ -185,6 +192,70 @@ export default function CareerStoryPlatform() {
     setExpandedPosts(newExpanded)
   }
 
+  // Load posts on component mount
+  useEffect(() => {
+    const loadPosts = async () => {
+      setLoadingPosts(true)
+      const result = await fetchPosts()
+      if ('posts' in result) {
+        setPosts(result.posts)
+      } else {
+        console.error('Failed to load posts:', result.error)
+      }
+      setLoadingPosts(false)
+    }
+
+    loadPosts()
+  }, [])
+
+  // Category mapping for API
+  const getCategoryForAPI = (category: string) => {
+    switch (category) {
+      case "成功体験": return "success"
+      case "失敗談": return "failure"
+      case "アドバイス": return "advice"
+      default: return "success"
+    }
+  }
+
+  // Handle post submission
+  const handleSubmitPost = async () => {
+    if (!postTitle.trim() || !newStory.trim() || !user) {
+      return
+    }
+
+    setSubmittingPost(true)
+    try {
+      const result = await createPost({
+        title: postTitle.trim(),
+        content: newStory.trim(),
+        category: getCategoryForAPI(selectedCategory),
+        tags: [],
+        career_level: null,
+        career_stage: null,
+      })
+
+      if ('post' in result) {
+        // Add new post to the beginning of the list
+        setPosts([result.post, ...posts])
+        
+        // Reset form
+        setPostTitle("")
+        setNewStory("")
+        setSelectedCategory("成功体験")
+        setShowPostForm(false)
+      } else {
+        console.error('Failed to create post:', result.error)
+        alert('投稿の作成に失敗しました。もう一度お試しください。')
+      }
+    } catch (error) {
+      console.error('Error submitting post:', error)
+      alert('投稿中にエラーが発生しました。')
+    } finally {
+      setSubmittingPost(false)
+    }
+  }
+
   const truncateText = (text: string, maxLength = 150) => {
     if (text.length <= maxLength) return text
     return text.substring(0, maxLength) + "..."
@@ -192,6 +263,17 @@ export default function CareerStoryPlatform() {
 
   const shouldShowExpandButton = (text: string, maxLength = 150) => {
     return text.length > maxLength
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-emerald-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">読み込み中...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -238,17 +320,38 @@ export default function CareerStoryPlatform() {
                   className="pl-10 w-64 bg-white/50 border-green-200 focus:border-emerald-400"
                 />
               </div>
-              <Button variant="ghost" size="sm" className="text-gray-600 hover:text-emerald-600">
-                <Bell className="w-5 h-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowLoginDialog(true)}
-                className="text-gray-600 hover:text-emerald-600"
-              >
-                ログイン
-              </Button>
+              {user && (
+                <Button variant="ghost" size="sm" className="text-gray-600 hover:text-emerald-600">
+                  <Bell className="w-5 h-5" />
+                </Button>
+              )}
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <Avatar className="w-6 h-6">
+                        <AvatarImage src={user.user_metadata?.avatar_url} />
+                        <AvatarFallback>{user.email?.[0]?.toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <span className="hidden sm:inline text-gray-700">{user.user_metadata?.name || user.email}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem>プロフィール</DropdownMenuItem>
+                    <DropdownMenuItem>設定</DropdownMenuItem>
+                    <DropdownMenuItem onClick={signOut}>ログアウト</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowLoginDialog(true)}
+                  className="text-gray-600 hover:text-emerald-600"
+                >
+                  ログイン
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="md:hidden">
@@ -301,7 +404,7 @@ export default function CareerStoryPlatform() {
                   </div>
 
                   <Button
-                    onClick={() => setShowPostForm(!showPostForm)}
+                    onClick={() => user ? setShowPostForm(!showPostForm) : setShowLoginDialog(true)}
                     className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white shadow-lg"
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -312,13 +415,13 @@ export default function CareerStoryPlatform() {
             </div>
 
             {/* 投稿フォーム */}
-            {showPostForm && (
+            {showPostForm && user && (
               <Card className="mb-6 border-green-200 shadow-lg bg-white/80 backdrop-blur-sm">
                 <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50">
                   <div className="flex items-center gap-3">
                     <Avatar className="border-2 border-green-200">
-                      <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                      <AvatarFallback>You</AvatarFallback>
+                      <AvatarImage src={user.user_metadata?.avatar_url} />
+                      <AvatarFallback>{user.email?.[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-medium text-gray-800">あなたのキャリアストーリーを共有しましょう</p>
@@ -328,6 +431,15 @@ export default function CareerStoryPlatform() {
                 </CardHeader>
                 <CardContent className="pt-6">
                   <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="投稿のタイトルを入力してください..."
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                        className="border-green-200 focus:border-emerald-400"
+                        disabled={submittingPost}
+                      />
+                    </div>
                     <div className="flex gap-2 mb-4">
                       {["成功体験", "失敗談", "アドバイス"].map((category) => (
                         <Button
@@ -335,6 +447,7 @@ export default function CareerStoryPlatform() {
                           variant={selectedCategory === category ? "default" : "outline"}
                           size="sm"
                           onClick={() => setSelectedCategory(category)}
+                          disabled={submittingPost}
                           className={
                             selectedCategory === category
                               ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white"
@@ -351,6 +464,7 @@ export default function CareerStoryPlatform() {
                       value={newStory}
                       onChange={(e) => setNewStory(e.target.value)}
                       className="min-h-32 border-green-200 focus:border-emerald-400"
+                      disabled={submittingPost}
                     />
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
                       <div className="flex items-start gap-2">
@@ -368,13 +482,23 @@ export default function CareerStoryPlatform() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-between bg-gray-50/50">
-                  <p className="text-sm text-gray-500">現在のフェーズ（例：転職活動3ヶ月目）</p>
+                  <p className="text-sm text-gray-500">
+                    文字数: {newStory.length} / タイトル: {postTitle.length}
+                  </p>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setShowPostForm(false)}>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowPostForm(false)}
+                      disabled={submittingPost}
+                    >
                       キャンセル
                     </Button>
-                    <Button className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600">
-                      投稿する
+                    <Button 
+                      onClick={handleSubmitPost}
+                      disabled={submittingPost || !postTitle.trim() || !newStory.trim()}
+                      className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600"
+                    >
+                      {submittingPost ? '投稿中...' : '投稿する'}
                     </Button>
                   </div>
                 </CardFooter>
@@ -383,7 +507,16 @@ export default function CareerStoryPlatform() {
 
             {/* ストーリー一覧 */}
             <div className="space-y-6">
-              {stories.map((story) => (
+              {loadingPosts ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">まだ投稿がありません。最初の投稿をしてみませんか？</p>
+                </div>
+              ) : (
+                posts.map((story) => (
                 <Card
                   key={story.id}
                   className="border-green-100 shadow-lg hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm overflow-hidden group"
