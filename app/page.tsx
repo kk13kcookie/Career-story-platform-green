@@ -135,7 +135,7 @@ export default function CareerStoryPlatform() {
   const [newStory, setNewStory] = useState("")
   const [postTitle, setPostTitle] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("成功体験")
-  const [expandedPosts, setExpandedPosts] = useState<Set<number>>(new Set())
+  const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set())
   const [showLoginDialog, setShowLoginDialog] = useState(false)
   const [posts, setPosts] = useState<Post[]>([])
   const [loadingPosts, setLoadingPosts] = useState(true)
@@ -233,6 +233,7 @@ export default function CareerStoryPlatform() {
         tags: [],
         career_level: null,
         career_stage: null,
+        user_id: user.id,
       })
 
       if ('post' in result) {
@@ -525,37 +526,39 @@ export default function CareerStoryPlatform() {
                     <div className="flex items-start justify-between">
                       <Link href="/profile" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                         <Avatar className="border-2 border-green-200">
-                          <AvatarImage src={story.avatar || "/placeholder.svg"} />
-                          <AvatarFallback>{story.author[0]}</AvatarFallback>
+                          <AvatarImage src={story.users?.avatar_url || "/placeholder.svg"} />
+                          <AvatarFallback>{(story.users?.name || story.users?.username || 'U')[0]}</AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium text-gray-800">{story.author}</p>
-                            {story.isPremium && <Crown className="w-4 h-4 text-emerald-500" />}
-                            <Badge className={getCareerLevelColor(story.careerLevel)} variant="secondary">
-                              {story.careerLevel}
-                            </Badge>
+                            <p className="font-medium text-gray-800">{story.users?.name || story.users?.username || 'Unknown User'}</p>
+                            {story.users?.is_premium && <Crown className="w-4 h-4 text-emerald-500" />}
+                            {story.career_level && (
+                              <Badge className={getCareerLevelColor(story.career_level)} variant="secondary">
+                                {story.career_level}
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span>{story.username}</span>
+                            <span>@{story.users?.username || story.users?.id?.slice(0, 8)}</span>
                             <span>•</span>
-                            <span>{story.time}</span>
+                            <span>{new Date(story.created_at).toLocaleDateString('ja-JP')}</span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
                               <Eye className="w-3 h-3" />
-                              {story.views}
+                              {story.views_count}
                             </span>
                           </div>
                         </div>
                       </Link>
                       <div className="flex items-center gap-2">
-                        <Badge className={`${getCategoryColor(story.category)} border`}>
-                          {getCategoryIcon(story.category)}
-                          <span className="ml-1">{story.category}</span>
+                        <Badge className={`${getCategoryColor(story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス')} border`}>
+                          {getCategoryIcon(story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス')}
+                          <span className="ml-1">{story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス'}</span>
                         </Badge>
                         <Badge variant="outline" className="text-xs text-gray-500">
                           <Calendar className="w-3 h-3 mr-1" />
-                          {story.readTime}
+                          {story.read_time}分
                         </Badge>
                       </div>
                     </div>
@@ -584,17 +587,19 @@ export default function CareerStoryPlatform() {
                     )}
 
                     {/* タグ */}
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {story.tags.map((tag, index) => (
-                        <Badge
-                          key={index}
-                          variant="secondary"
-                          className="bg-gray-100 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer transition-colors"
-                        >
-                          #{tag}
-                        </Badge>
-                      ))}
-                    </div>
+                    {story.tags && story.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        {story.tags.map((tag, index) => (
+                          <Badge
+                            key={index}
+                            variant="secondary"
+                            className="bg-gray-100 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer transition-colors"
+                          >
+                            #{tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
 
                   <CardFooter className="pt-0 bg-gradient-to-r from-gray-50/50 to-emerald-50/50">
@@ -605,8 +610,8 @@ export default function CareerStoryPlatform() {
                           size="sm"
                           className="gap-2 text-gray-500 hover:text-rose-500 hover:bg-rose-50"
                         >
-                          <Heart className={`w-4 h-4 ${story.isLiked ? "fill-rose-500 text-rose-500" : ""}`} />
-                          {story.likes}
+                          <Heart className="w-4 h-4" />
+                          {story.likes_count}
                         </Button>
                         <Button
                           variant="ghost"
@@ -614,7 +619,7 @@ export default function CareerStoryPlatform() {
                           className="gap-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50"
                         >
                           <MessageCircle className="w-4 h-4" />
-                          {story.comments}
+                          {story.comments_count}
                         </Button>
                         <Button
                           variant="ghost"
@@ -632,7 +637,7 @@ export default function CareerStoryPlatform() {
                         >
                           <Bookmark className="w-4 h-4" />
                         </Button>
-                        {story.isPremium && (
+                        {story.users?.is_premium && (
                           <Button
                             size="sm"
                             className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white"
@@ -645,7 +650,8 @@ export default function CareerStoryPlatform() {
                     </div>
                   </CardFooter>
                 </Card>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

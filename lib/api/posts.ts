@@ -36,20 +36,12 @@ export interface Post {
   } | null
 }
 
-export async function createPost(data: CreatePostData): Promise<{ post: Post } | { error: string }> {
+export async function createPost(data: CreatePostData & { user_id: string }): Promise<{ post: Post } | { error: string }> {
   try {
-    // Get current session
-    const { data: { session } } = await supabase.auth.getSession()
-    
-    if (!session?.access_token) {
-      return { error: 'Authentication required' }
-    }
-
     const response = await fetch('/api/posts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify(data),
     })

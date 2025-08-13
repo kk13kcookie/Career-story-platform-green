@@ -193,6 +193,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={loading}
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-2">
@@ -204,6 +205,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={loading}
+                    autoComplete="current-password"
                   />
                 </div>
                 <Button 
@@ -227,6 +229,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={loading}
+                    autoComplete="email"
                   />
                 </div>
                 <div className="space-y-2">
@@ -239,6 +242,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                     required
                     disabled={loading}
                     minLength={6}
+                    autoComplete="new-password"
                   />
                   <p className="text-xs text-muted-foreground">
                     6文字以上で入力してください

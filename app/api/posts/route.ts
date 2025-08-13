@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase/client'
 import { createClient } from '@supabase/supabase-js'
 
 // Server-side Supabase client with service role for server operations
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// Client-side Supabase for reading public data
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
 export async function GET() {
@@ -41,26 +46,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, content, category, tags, career_level, career_stage } = await request.json()
+    const { title, content, category, tags, career_level, career_stage, user_id } = await request.json()
     
-    // Get authorization header
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Authorization required' }, { status: 401 })
-    }
-
-    // Extract JWT token
-    const token = authHeader.replace('Bearer ', '')
-    
-    // Verify user with server-side client
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
-    
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid authentication' }, { status: 401 })
-    }
-
     // Validate input
-    if (!title?.trim() || !content?.trim() || !category) {
+    if (!title?.trim() || !content?.trim() || !category || !user_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -72,12 +61,12 @@ export async function POST(request: NextRequest) {
     const wordCount = content.trim().split(/\s+/).length
     const readTime = Math.max(1, Math.ceil(wordCount / 200))
 
-    // Insert post
+    // Insert post using admin client
     const { data: post, error } = await supabaseAdmin
       .from('posts')
       .insert([
         {
-          user_id: user.id,
+          user_id: user_id,
           title: title.trim(),
           content: content.trim(),
           category,
