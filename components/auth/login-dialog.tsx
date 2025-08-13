@@ -25,6 +25,18 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     setLoading(true)
     setMessage('')
 
+    // 基本的な入力検証
+    if (!email.trim() || !email.includes('@')) {
+      setMessage('有効なメールアドレスを入力してください')
+      setLoading(false)
+      return
+    }
+    if (!password.trim() || password.length < 6) {
+      setMessage('パスワードは6文字以上で入力してください')
+      setLoading(false)
+      return
+    }
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -49,6 +61,18 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     e.preventDefault()
     setLoading(true)
     setMessage('')
+
+    // 基本的な入力検証
+    if (!email.trim() || !email.includes('@')) {
+      setMessage('有効なメールアドレスを入力してください')
+      setLoading(false)
+      return
+    }
+    if (!password.trim() || password.length < 6) {
+      setMessage('パスワードは6文字以上で入力してください')
+      setLoading(false)
+      return
+    }
 
     try {
       const { error } = await supabase.auth.signUp({
