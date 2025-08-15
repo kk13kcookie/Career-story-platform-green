@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-// Server-side Supabase client with service role for server operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-// Client-side Supabase for reading public data
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabaseServer } from '@/lib/supabase/server-client'
 
 export async function GET() {
   try {
-    const { data: posts, error } = await supabase
+    const { data: posts, error } = await supabaseServer
       .from('posts')
       .select(`
         *,
@@ -58,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     // SECURITY: Basic user verification - Check if user exists in database
-    const { data: userExists, error: userError } = await supabaseAdmin
+    const { data: userExists, error: userError } = await supabaseServer
       .from('users')
       .select('id')
       .eq('id', user_id)
@@ -72,8 +60,8 @@ export async function POST(request: NextRequest) {
     const wordCount = content.trim().split(/\s+/).length
     const readTime = Math.max(1, Math.ceil(wordCount / 200))
 
-    // Insert post using admin client
-    const { data: post, error } = await supabaseAdmin
+    // Insert post using server client
+    const { data: post, error } = await supabaseServer
       .from('posts')
       .insert([
         {

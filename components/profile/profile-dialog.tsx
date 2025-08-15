@@ -89,14 +89,14 @@ export function ProfileDialog({ userId, trigger }: ProfileDialogProps) {
       setError(null)
       
       const updatedProfile = await updateProfile(userId, {
-        name: editForm.name || null,
-        username: editForm.username || null,
-        bio: editForm.bio || null,
-        location: editForm.location || null,
-        website: editForm.website || null,
-        current_job_role: editForm.current_job_role || null,
-        company: editForm.company || null,
-        experience: editForm.experience || null,
+        name: editForm.name || undefined,
+        username: editForm.username || undefined,
+        bio: editForm.bio || undefined,
+        location: editForm.location || undefined,
+        website: editForm.website || undefined,
+        current_job_role: editForm.current_job_role || undefined,
+        company: editForm.company || undefined,
+        experience: editForm.experience || undefined,
         skills: editForm.skills
       })
       

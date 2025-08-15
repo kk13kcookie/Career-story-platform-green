@@ -132,6 +132,8 @@ export interface Comment {
   id: string
   content: string
   created_at: string
+  updated_at?: string
+  user_id: string
   users: {
     id: string
     name: string | null
@@ -183,6 +185,51 @@ export async function fetchComments(postId: string): Promise<{ comments: Comment
     return { comments: result.comments }
   } catch (error) {
     console.error('Error fetching comments:', error)
+    return { error: 'Network error occurred' }
+  }
+}
+
+export async function updateComment(commentId: string, content: string, userId: string): Promise<{ comment: Comment } | { error: string }> {
+  try {
+    const response = await fetch('/api/comments', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ comment_id: commentId, content, user_id: userId }),
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to update comment' }
+    }
+
+    return { comment: result.comment }
+  } catch (error) {
+    console.error('Error updating comment:', error)
+    return { error: 'Network error occurred' }
+  }
+}
+
+export async function deleteComment(commentId: string, userId: string): Promise<{ success: boolean } | { error: string }> {
+  try {
+    const response = await fetch(`/api/comments?comment_id=${commentId}&user_id=${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to delete comment' }
+    }
+
+    return { success: result.success }
+  } catch (error) {
+    console.error('Error deleting comment:', error)
     return { error: 'Network error occurred' }
   }
 }

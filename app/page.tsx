@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { createPost, fetchPosts, toggleLike, checkLikeStatus, createComment, fetchComments, type Post, type Comment } from "@/lib/api/posts"
+import { createPost, fetchPosts, toggleLike, checkLikeStatus, createComment, fetchComments, updateComment, deleteComment, type Post, type Comment } from "@/lib/api/posts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -35,6 +35,9 @@ import {
   Calendar,
   Eye,
   Award,
+  Edit3,
+  Trash2,
+  MoreVertical,
 } from "lucide-react"
 import Link from "next/link"
 import { LoginDialog } from "@/components/auth/login-dialog"
@@ -129,7 +132,7 @@ const mentors = [
   },
 ]
 
-export default function CareerStoryPlatform() {
+function CareerStoryPlatform() {
   const { user, profile, loading, signOut } = useAuth()
   
   // プロフィール更新時にコメントと投稿のユーザー情報も同期する
@@ -143,14 +146,14 @@ export default function CareerStoryPlatform() {
             if (comment.user_id === user.id) {
               return {
                 ...comment,
-                users: {
+                users: comment.users ? {
                   ...comment.users,
                   name: profile.name,
                   username: profile.username,
                   avatar_url: profile.avatar_url,
                   is_premium: profile.is_premium,
                   is_verified: profile.is_verified
-                }
+                } : null
               }
             }
             return comment
@@ -166,14 +169,14 @@ export default function CareerStoryPlatform() {
           if (post.user_id === user.id) {
             return {
               ...post,
-              users: {
+              users: post.users ? {
                 ...post.users,
                 name: profile.name,
                 username: profile.username,
                 avatar_url: profile.avatar_url,
                 is_premium: profile.is_premium,
                 is_verified: profile.is_verified
-              }
+              } : null
             }
           }
           return post
@@ -181,7 +184,6 @@ export default function CareerStoryPlatform() {
       )
     }
   }, [profile, user?.id])
-  const [activeTab, setActiveTab] = useState("すべて")
   const [showPostForm, setShowPostForm] = useState(false)
   const [newStory, setNewStory] = useState("")
   const [postTitle, setPostTitle] = useState("")
@@ -198,9 +200,18 @@ export default function CareerStoryPlatform() {
   const [showCommentsMap, setShowCommentsMap] = useState<Map<string, boolean>>(new Map())
   const [newCommentMap, setNewCommentMap] = useState<Map<string, string>>(new Map())
   const [submittingCommentMap, setSubmittingCommentMap] = useState<Map<string, boolean>>(new Map())
+  
+  // Comment editing and deleting functionality
+  const [editingCommentMap, setEditingCommentMap] = useState<Map<string, boolean>>(new Map())
+  const [editCommentContentMap, setEditCommentContentMap] = useState<Map<string, string>>(new Map())
+  const [updatingCommentMap, setUpdatingCommentMap] = useState<Map<string, boolean>>(new Map())
+  const [deletingCommentMap, setDeletingCommentMap] = useState<Map<string, boolean>>(new Map())
+
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
+      case "すべて":
+        return <BookOpen className="w-4 h-4 text-blue-500" />
       case "成功体験":
         return <CheckCircle className="w-4 h-4 text-emerald-500" />
       case "失敗談":
@@ -363,6 +374,115 @@ export default function CareerStoryPlatform() {
     setNewCommentMap(newCommentInputMap)
   }
 
+  // Start editing comment
+  const startEditingComment = (commentId: string, currentContent: string) => {
+    const newEditingMap = new Map(editingCommentMap)
+    const newContentMap = new Map(editCommentContentMap)
+    newEditingMap.set(commentId, true)
+    newContentMap.set(commentId, currentContent)
+    setEditingCommentMap(newEditingMap)
+    setEditCommentContentMap(newContentMap)
+  }
+
+  // Cancel editing comment
+  const cancelEditingComment = (commentId: string) => {
+    const newEditingMap = new Map(editingCommentMap)
+    const newContentMap = new Map(editCommentContentMap)
+    newEditingMap.delete(commentId)
+    newContentMap.delete(commentId)
+    setEditingCommentMap(newEditingMap)
+    setEditCommentContentMap(newContentMap)
+  }
+
+  // Update edit comment content
+  const updateEditCommentContent = (commentId: string, value: string) => {
+    const newContentMap = new Map(editCommentContentMap)
+    newContentMap.set(commentId, value)
+    setEditCommentContentMap(newContentMap)
+  }
+
+  // Handle comment update
+  const handleCommentUpdate = async (commentId: string, postId: string) => {
+    if (!user) return
+
+    const updatedContent = editCommentContentMap.get(commentId) || ''
+    if (!updatedContent.trim()) return
+
+    const newUpdatingMap = new Map(updatingCommentMap)
+    newUpdatingMap.set(commentId, true)
+    setUpdatingCommentMap(newUpdatingMap)
+
+    try {
+      const result = await updateComment(commentId, updatedContent.trim(), user.id)
+      if ('comment' in result) {
+        // Update comment in the map
+        const newCommentsMap = new Map(commentsMap)
+        const currentComments = newCommentsMap.get(postId) || []
+        const updatedComments = currentComments.map(comment => 
+          comment.id === commentId ? result.comment : comment
+        )
+        newCommentsMap.set(postId, updatedComments)
+        setCommentsMap(newCommentsMap)
+
+        // Cancel editing mode
+        cancelEditingComment(commentId)
+      } else {
+        console.error('Error updating comment:', result.error)
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error)
+    } finally {
+      const newUpdatingMap = new Map(updatingCommentMap)
+      newUpdatingMap.set(commentId, false)
+      setUpdatingCommentMap(newUpdatingMap)
+    }
+  }
+
+  // Handle comment deletion
+  const handleCommentDelete = async (commentId: string, postId: string) => {
+    if (!user) return
+    
+    if (!confirm('このコメントを削除しますか？')) return
+
+    const newDeletingMap = new Map(deletingCommentMap)
+    newDeletingMap.set(commentId, true)
+    setDeletingCommentMap(newDeletingMap)
+
+    try {
+      const result = await deleteComment(commentId, user.id)
+      if ('success' in result) {
+        // Remove comment from the map
+        const newCommentsMap = new Map(commentsMap)
+        const currentComments = newCommentsMap.get(postId) || []
+        const filteredComments = currentComments.filter(comment => comment.id !== commentId)
+        newCommentsMap.set(postId, filteredComments)
+        setCommentsMap(newCommentsMap)
+
+        // Update post comments count
+        setPosts(prevPosts => 
+          prevPosts.map(post => {
+            if (post.id === postId) {
+              return {
+                ...post,
+                comments_count: Math.max(0, post.comments_count - 1)
+              }
+            }
+            return post
+          })
+        )
+      } else {
+        console.error('Error deleting comment:', result.error)
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error)
+    } finally {
+      const newDeletingMap = new Map(deletingCommentMap)
+      newDeletingMap.set(commentId, false)
+      setDeletingCommentMap(newDeletingMap)
+    }
+  }
+
+
   // Load posts on component mount
   useEffect(() => {
     const loadPosts = async () => {
@@ -428,8 +548,8 @@ export default function CareerStoryPlatform() {
         content: newStory.trim(),
         category: getCategoryForAPI(selectedCategory),
         tags: [],
-        career_level: null,
-        career_stage: null,
+        career_level: undefined,
+        career_stage: undefined,
         user_id: user.id,
       })
 
@@ -584,35 +704,14 @@ export default function CareerStoryPlatform() {
           <div className="lg:col-span-3">
             {/* コントロールバー */}
             <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 mb-6 border border-green-100">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-gray-800">キャリアストーリー</h2>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
-                    247 新着
-                  </Badge>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {/* カテゴリータブ */}
-                  <div className="flex gap-1 bg-white/80 rounded-xl p-1 border border-green-200">
-                    {["すべて", "成功体験", "失敗談", "アドバイス"].map((tab) => (
-                      <Button
-                        key={tab}
-                        variant={activeTab === tab ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setActiveTab(tab)}
-                        className={
-                          activeTab === tab
-                            ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-md"
-                            : "text-gray-600 hover:text-emerald-600 hover:bg-emerald-50"
-                        }
-                      >
-                        {getCategoryIcon(tab)}
-                        <span className="ml-1 hidden sm:inline">{tab}</span>
-                      </Button>
-                    ))}
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-gray-800">キャリアストーリー</h2>
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+                      {posts.length} 件
+                    </Badge>
                   </div>
-
                   <Button
                     onClick={() => user ? setShowPostForm(!showPostForm) : setShowLoginDialog(true)}
                     className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white shadow-lg"
@@ -726,8 +825,9 @@ export default function CareerStoryPlatform() {
                   <p className="text-gray-500">まだ投稿がありません。最初の投稿をしてみませんか？</p>
                 </div>
               ) : (
-                posts.map((story) => (
-                <Card
+                <div>
+                  {posts.map((story) => (
+                    <Card
                   key={story.id}
                   className="border-green-100 shadow-lg hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm overflow-hidden group"
                 >
@@ -927,18 +1027,87 @@ export default function CareerStoryPlatform() {
                               <AvatarFallback>{(comment.users?.name || comment.users?.username || 'U')[0]}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm text-gray-800">
-                                  {comment.users?.name || comment.users?.username || 'Unknown User'}
-                                </span>
-                                {comment.users?.is_premium && <Crown className="w-3 h-3 text-emerald-500" />}
-                                <span className="text-xs text-gray-500">
-                                  {new Date(comment.created_at).toLocaleDateString('ja-JP')}
-                                </span>
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm text-gray-800">
+                                    {comment.users?.name || comment.users?.username || 'Unknown User'}
+                                  </span>
+                                  {comment.users?.is_premium && <Crown className="w-3 h-3 text-emerald-500" />}
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(comment.created_at).toLocaleDateString('ja-JP')}
+                                    {comment.updated_at && comment.updated_at !== comment.created_at && (
+                                      <span className="ml-1">(編集済み)</span>
+                                    )}
+                                  </span>
+                                </div>
+                                {/* コメント操作メニュー（自分のコメントのみ） */}
+                                {user && comment.user_id === user.id && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                        <MoreVertical className="w-3 h-3" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem 
+                                        onClick={() => startEditingComment(comment.id, comment.content)}
+                                        disabled={editingCommentMap.get(comment.id)}
+                                      >
+                                        <Edit3 className="w-3 h-3 mr-2" />
+                                        編集
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        onClick={() => handleCommentDelete(comment.id, story.id)}
+                                        disabled={deletingCommentMap.get(comment.id)}
+                                        className="text-red-600"
+                                      >
+                                        <Trash2 className="w-3 h-3 mr-2" />
+                                        {deletingCommentMap.get(comment.id) ? '削除中...' : '削除'}
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
                               </div>
-                              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                                {comment.content}
-                              </p>
+                              
+                              {/* コメント内容または編集フォーム */}
+                              {editingCommentMap.get(comment.id) ? (
+                                <div className="space-y-2">
+                                  <Textarea
+                                    value={editCommentContentMap.get(comment.id) || ''}
+                                    onChange={(e) => updateEditCommentContent(comment.id, e.target.value)}
+                                    className="min-h-[60px] text-sm"
+                                    placeholder="コメントを編集..."
+                                    maxLength={1000}
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleCommentUpdate(comment.id, story.id)}
+                                      disabled={
+                                        !editCommentContentMap.get(comment.id)?.trim() ||
+                                        updatingCommentMap.get(comment.id)
+                                      }
+                                    >
+                                      {updatingCommentMap.get(comment.id) ? '更新中...' : '更新'}
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => cancelEditingComment(comment.id)}
+                                      disabled={updatingCommentMap.get(comment.id)}
+                                    >
+                                      キャンセル
+                                    </Button>
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {editCommentContentMap.get(comment.id)?.length || 0}/1000文字
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                  {comment.content}
+                                </p>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -952,7 +1121,8 @@ export default function CareerStoryPlatform() {
                     </div>
                   )}
                 </Card>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -1071,3 +1241,5 @@ export default function CareerStoryPlatform() {
     </div>
   )
 }
+
+export default CareerStoryPlatform
