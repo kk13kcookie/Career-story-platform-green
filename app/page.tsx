@@ -38,6 +38,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { LoginDialog } from "@/components/auth/login-dialog"
+import { ProfileDialog } from "@/components/profile/profile-dialog"
 
 const stories = [
   {
@@ -129,7 +130,57 @@ const mentors = [
 ]
 
 export default function CareerStoryPlatform() {
-  const { user, loading, signOut } = useAuth()
+  const { user, profile, loading, signOut } = useAuth()
+  
+  // プロフィール更新時にコメントと投稿のユーザー情報も同期する
+  useEffect(() => {
+    if (profile && user?.id) {
+      // コメントのユーザー情報を更新
+      setCommentsMap(prevMap => {
+        const newMap = new Map(prevMap)
+        for (const [postId, comments] of newMap) {
+          const updatedComments = comments.map(comment => {
+            if (comment.user_id === user.id) {
+              return {
+                ...comment,
+                users: {
+                  ...comment.users,
+                  name: profile.name,
+                  username: profile.username,
+                  avatar_url: profile.avatar_url,
+                  is_premium: profile.is_premium,
+                  is_verified: profile.is_verified
+                }
+              }
+            }
+            return comment
+          })
+          newMap.set(postId, updatedComments)
+        }
+        return newMap
+      })
+
+      // 投稿のユーザー情報を更新
+      setPosts(prevPosts => 
+        prevPosts.map(post => {
+          if (post.user_id === user.id) {
+            return {
+              ...post,
+              users: {
+                ...post.users,
+                name: profile.name,
+                username: profile.username,
+                avatar_url: profile.avatar_url,
+                is_premium: profile.is_premium,
+                is_verified: profile.is_verified
+              }
+            }
+          }
+          return post
+        })
+      )
+    }
+  }, [profile, user?.id])
   const [activeTab, setActiveTab] = useState("すべて")
   const [showPostForm, setShowPostForm] = useState(false)
   const [newStory, setNewStory] = useState("")
@@ -477,14 +528,26 @@ export default function CareerStoryPlatform() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="gap-2">
                       <Avatar className="w-6 h-6">
-                        <AvatarImage src={user.user_metadata?.avatar_url} />
-                        <AvatarFallback>{user.email?.[0]?.toUpperCase()}</AvatarFallback>
+                        <AvatarImage 
+                          src={profile?.avatar_url || user.user_metadata?.avatar_url} 
+                          key={profile?.avatar_url || user.user_metadata?.avatar_url || 'default'}
+                        />
+                        <AvatarFallback>{(profile?.name || profile?.username || user.email)?.[0]?.toUpperCase()}</AvatarFallback>
                       </Avatar>
-                      <span className="hidden sm:inline text-gray-700">{user.user_metadata?.name || user.email}</span>
+                      <span className="hidden sm:inline text-gray-700">
+                        {profile?.name || profile?.username || user.email}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>プロフィール</DropdownMenuItem>
+                    <ProfileDialog 
+                      userId={user.id} 
+                      trigger={
+                        <div className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50">
+                          プロフィール
+                        </div>
+                      }
+                    />
                     <DropdownMenuItem>設定</DropdownMenuItem>
                     <DropdownMenuItem onClick={signOut}>ログアウト</DropdownMenuItem>
                   </DropdownMenuContent>
@@ -670,33 +733,41 @@ export default function CareerStoryPlatform() {
                 >
                   <CardHeader className="pb-4">
                     <div className="flex items-start justify-between">
-                      <Link href="/profile" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                        <Avatar className="border-2 border-green-200">
-                          <AvatarImage src={story.users?.avatar_url || "/placeholder.svg"} />
-                          <AvatarFallback>{(story.users?.name || story.users?.username || 'U')[0]}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-gray-800">{story.users?.name || story.users?.username || 'Unknown User'}</p>
-                            {story.users?.is_premium && <Crown className="w-4 h-4 text-emerald-500" />}
-                            {story.career_level && (
-                              <Badge className={getCareerLevelColor(story.career_level)} variant="secondary">
-                                {story.career_level}
-                              </Badge>
-                            )}
+                      <ProfileDialog
+                        userId={story.user_id}
+                        trigger={
+                          <div className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
+                            <Avatar className="border-2 border-green-200">
+                              <AvatarImage 
+                                src={story.users?.avatar_url || "/placeholder.svg"} 
+                                key={`post-${story.id}-${story.users?.avatar_url || 'default'}`}
+                              />
+                              <AvatarFallback>{(story.users?.name || story.users?.username || 'U')[0]}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-gray-800">{story.users?.name || story.users?.username || 'Unknown User'}</p>
+                                {story.users?.is_premium && <Crown className="w-4 h-4 text-emerald-500" />}
+                                {story.career_level && (
+                                  <Badge className={getCareerLevelColor(story.career_level)} variant="secondary">
+                                    {story.career_level}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <span>@{story.users?.username || story.users?.id?.slice(0, 8)}</span>
+                                <span>•</span>
+                                <span>{new Date(story.created_at).toLocaleDateString('ja-JP')}</span>
+                                <span>•</span>
+                                <span className="flex items-center gap-1">
+                                  <Eye className="w-3 h-3" />
+                                  {story.views_count}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span>@{story.users?.username || story.users?.id?.slice(0, 8)}</span>
-                            <span>•</span>
-                            <span>{new Date(story.created_at).toLocaleDateString('ja-JP')}</span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Eye className="w-3 h-3" />
-                              {story.views_count}
-                            </span>
-                          </div>
-                        </div>
-                      </Link>
+                        }
+                      />
                       <div className="flex items-center gap-2">
                         <Badge className={`${getCategoryColor(story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス')} border`}>
                           {getCategoryIcon(story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス')}
@@ -813,8 +884,11 @@ export default function CareerStoryPlatform() {
                       {user && (
                         <div className="flex gap-3">
                           <Avatar className="border-2 border-green-200 flex-shrink-0">
-                            <AvatarImage src={user.user_metadata?.avatar_url} />
-                            <AvatarFallback>{(user.user_metadata?.name || user.email || 'U')[0]}</AvatarFallback>
+                            <AvatarImage 
+                              src={profile?.avatar_url || user.user_metadata?.avatar_url} 
+                              key={profile?.avatar_url || user.user_metadata?.avatar_url || 'default'}
+                            />
+                            <AvatarFallback>{(profile?.name || profile?.username || user.email || 'U')[0]}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 space-y-2">
                             <Textarea
@@ -846,7 +920,10 @@ export default function CareerStoryPlatform() {
                         {(commentsMap.get(story.id) || []).map((comment) => (
                           <div key={comment.id} className="flex gap-3 bg-white rounded-lg p-3 border border-gray-100">
                             <Avatar className="border-2 border-green-200 flex-shrink-0">
-                              <AvatarImage src={comment.users?.avatar_url || "/placeholder.svg"} />
+                              <AvatarImage 
+                                src={comment.users?.avatar_url || "/placeholder.svg"} 
+                                key={`comment-${comment.id}-${comment.users?.avatar_url || 'default'}`}
+                              />
                               <AvatarFallback>{(comment.users?.name || comment.users?.username || 'U')[0]}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
