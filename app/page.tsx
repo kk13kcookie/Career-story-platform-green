@@ -43,68 +43,8 @@ import Link from "next/link"
 import { LoginDialog } from "@/components/auth/login-dialog"
 import { ProfileDialog } from "@/components/profile/profile-dialog"
 
-const stories = [
-  {
-    id: 1,
-    author: "田中太郎",
-    username: "@tanaka_career",
-    avatar: "/placeholder.svg?height=40&width=40",
-    time: "2時間前",
-    category: "成功体験",
-    careerLevel: "中級者",
-    careerStage: "転職成功",
-    title: "未経験からエンジニア転職して3年が経ちました。",
-    content:
-      "当時の私は営業職で、プログラミングの「プ」の字も知らない状況でした。しかし、毎日コツコツと学習を続け、ついに念願のエンジニア転職を果たすことができました。\n\n転職活動では多くの困難がありました。技術面接では基礎的な質問にも答えられず、何度も落ち込みました。でも諦めずに学習を続け、ポートフォリオを充実させ、最終的に理想の会社に入社できました。",
-    likes: 234,
-    comments: 45,
-    views: 1200,
-    isLiked: false,
-    isPremium: false,
-    tags: ["エンジニア転職", "未経験", "学習継続"],
-    readTime: "3分",
-  },
-  {
-    id: 2,
-    author: "佐藤花子",
-    username: "@sato_design",
-    avatar: "/placeholder.svg?height=40&width=40",
-    time: "5時間前",
-    category: "失敗談",
-    careerLevel: "上級者",
-    careerStage: "転職活動中",
-    title: "転職活動で100社落ちた話",
-    content:
-      "デザイナーとして転職活動をしていた時期、なんと100社以上から不採用通知をもらいました。でもその経験があったからこそ、今の自分があります。\n\n最初は自分のスキルに自信を持っていました。しかし、面接を重ねるうちに、技術力だけでなく、コミュニケーション能力やチームワークの重要性を痛感しました。",
-    likes: 189,
-    comments: 67,
-    views: 890,
-    isLiked: true,
-    isPremium: true,
-    tags: ["転職活動", "デザイナー", "失敗から学ぶ"],
-    readTime: "5分",
-  },
-  {
-    id: 3,
-    author: "山田一郎",
-    username: "@yamada_startup",
-    avatar: "/placeholder.svg?height=40&width=40",
-    time: "1日前",
-    category: "アドバイス",
-    careerLevel: "エキスパート",
-    careerStage: "起業",
-    title: "スタートアップで学んだ3つのこと",
-    content:
-      "スタートアップで働いて分かったのは、スピード感、柔軟性、そして何より「失敗を恐れない心」の大切さでした。大企業とは全く違う環境で、多くのことを学ぶことができました。",
-    likes: 156,
-    comments: 23,
-    views: 654,
-    isLiked: false,
-    isPremium: false,
-    tags: ["スタートアップ", "起業", "学び"],
-    readTime: "2分",
-  },
-]
+// Sample stories moved to separate file to reduce bundle size
+// const stories = [...] // Unused static data - removed for performance
 
 const trendingTopics = [
   { tag: "エンジニア転職", posts: "2.1K", trend: "up" },
@@ -523,7 +463,7 @@ function CareerStoryPlatform() {
     }
 
     loadLikeStatuses()
-  }, [user, posts])
+  }, [user, posts, likesMap])
 
   // Category mapping for API
   const getCategoryForAPI = (category: string) => {

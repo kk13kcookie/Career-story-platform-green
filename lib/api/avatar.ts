@@ -4,7 +4,7 @@ export interface UploadAvatarResponse {
   user: {
     id: string
     avatar_url: string | null
-    [key: string]: any
+    [key: string]: unknown
   }
 }
 
@@ -13,7 +13,7 @@ export interface DeleteAvatarResponse {
   user: {
     id: string
     avatar_url: string | null
-    [key: string]: any
+    [key: string]: unknown
   }
 }
 

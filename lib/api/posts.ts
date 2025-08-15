@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase/client'
+// Note: Direct supabase client not used - all API calls go through Next.js API routes
 
 export interface CreatePostData {
   title: string
