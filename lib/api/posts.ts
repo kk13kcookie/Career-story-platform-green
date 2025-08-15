@@ -80,3 +80,109 @@ export async function fetchPosts(): Promise<{ posts: Post[] } | { error: string 
     return { error: 'Network error occurred' }
   }
 }
+
+// Like/Unlike functionality
+export async function toggleLike(postId: string, userId: string): Promise<{ liked: boolean } | { error: string }> {
+  try {
+    const response = await fetch('/api/likes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ post_id: postId, user_id: userId }),
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to toggle like' }
+    }
+
+    return { liked: result.liked }
+  } catch (error) {
+    console.error('Error toggling like:', error)
+    return { error: 'Network error occurred' }
+  }
+}
+
+export async function checkLikeStatus(postId: string, userId: string): Promise<{ liked: boolean } | { error: string }> {
+  try {
+    const response = await fetch(`/api/likes?post_id=${postId}&user_id=${userId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to check like status' }
+    }
+
+    return { liked: result.liked }
+  } catch (error) {
+    console.error('Error checking like status:', error)
+    return { error: 'Network error occurred' }
+  }
+}
+
+// Comment functionality
+export interface Comment {
+  id: string
+  content: string
+  created_at: string
+  users: {
+    id: string
+    name: string | null
+    username: string | null
+    avatar_url: string | null
+    is_premium: boolean
+    is_verified: boolean
+  } | null
+}
+
+export async function createComment(postId: string, content: string, userId: string): Promise<{ comment: Comment } | { error: string }> {
+  try {
+    const response = await fetch('/api/comments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ post_id: postId, content, user_id: userId }),
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to create comment' }
+    }
+
+    return { comment: result.comment }
+  } catch (error) {
+    console.error('Error creating comment:', error)
+    return { error: 'Network error occurred' }
+  }
+}
+
+export async function fetchComments(postId: string): Promise<{ comments: Comment[] } | { error: string }> {
+  try {
+    const response = await fetch(`/api/comments?post_id=${postId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to fetch comments' }
+    }
+
+    return { comments: result.comments }
+  } catch (error) {
+    console.error('Error fetching comments:', error)
+    return { error: 'Network error occurred' }
+  }
+}

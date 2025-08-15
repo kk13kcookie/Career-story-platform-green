@@ -57,6 +57,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
     }
 
+    // SECURITY: Basic user verification - Check if user exists in database
+    const { data: userExists, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('id', user_id)
+      .single()
+
+    if (userError || !userExists) {
+      return NextResponse.json({ error: 'Invalid user' }, { status: 401 })
+    }
+
     // Calculate read time (rough estimate: 200 words per minute)
     const wordCount = content.trim().split(/\s+/).length
     const readTime = Math.max(1, Math.ceil(wordCount / 200))

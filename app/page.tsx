@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { createPost, fetchPosts, type Post } from "@/lib/api/posts"
+import { createPost, fetchPosts, toggleLike, checkLikeStatus, createComment, fetchComments, type Post, type Comment } from "@/lib/api/posts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -140,6 +140,13 @@ export default function CareerStoryPlatform() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [submittingPost, setSubmittingPost] = useState(false)
+  
+  // Like and comment functionality
+  const [likesMap, setLikesMap] = useState<Map<string, boolean>>(new Map())
+  const [commentsMap, setCommentsMap] = useState<Map<string, Comment[]>>(new Map())
+  const [showCommentsMap, setShowCommentsMap] = useState<Map<string, boolean>>(new Map())
+  const [newCommentMap, setNewCommentMap] = useState<Map<string, string>>(new Map())
+  const [submittingCommentMap, setSubmittingCommentMap] = useState<Map<string, boolean>>(new Map())
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -192,6 +199,119 @@ export default function CareerStoryPlatform() {
     setExpandedPosts(newExpanded)
   }
 
+  // Handle like toggle
+  const handleLikeToggle = async (postId: string) => {
+    if (!user) {
+      setShowLoginDialog(true)
+      return
+    }
+
+    try {
+      const result = await toggleLike(postId, user.id)
+      if ('liked' in result) {
+        const newLikesMap = new Map(likesMap)
+        newLikesMap.set(postId, result.liked)
+        setLikesMap(newLikesMap)
+
+        // Update posts count
+        setPosts(prevPosts => 
+          prevPosts.map(post => {
+            if (post.id === postId) {
+              return {
+                ...post,
+                likes_count: result.liked ? post.likes_count + 1 : post.likes_count - 1
+              }
+            }
+            return post
+          })
+        )
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error)
+    }
+  }
+
+  // Handle comment toggle visibility
+  const toggleComments = async (postId: string) => {
+    const newShowCommentsMap = new Map(showCommentsMap)
+    const isCurrentlyShowing = showCommentsMap.get(postId) || false
+    
+    if (isCurrentlyShowing) {
+      newShowCommentsMap.set(postId, false)
+      setShowCommentsMap(newShowCommentsMap)
+    } else {
+      newShowCommentsMap.set(postId, true)
+      setShowCommentsMap(newShowCommentsMap)
+      
+      // Load comments if not already loaded
+      if (!commentsMap.has(postId)) {
+        const result = await fetchComments(postId)
+        if ('comments' in result) {
+          const newCommentsMap = new Map(commentsMap)
+          newCommentsMap.set(postId, result.comments)
+          setCommentsMap(newCommentsMap)
+        }
+      }
+    }
+  }
+
+  // Handle comment submission
+  const handleCommentSubmit = async (postId: string) => {
+    if (!user) {
+      setShowLoginDialog(true)
+      return
+    }
+
+    const commentText = newCommentMap.get(postId) || ''
+    if (!commentText.trim()) return
+
+    const newSubmittingMap = new Map(submittingCommentMap)
+    newSubmittingMap.set(postId, true)
+    setSubmittingCommentMap(newSubmittingMap)
+
+    try {
+      const result = await createComment(postId, commentText.trim(), user.id)
+      if ('comment' in result) {
+        // Add new comment to the map
+        const newCommentsMap = new Map(commentsMap)
+        const currentComments = newCommentsMap.get(postId) || []
+        newCommentsMap.set(postId, [...currentComments, result.comment])
+        setCommentsMap(newCommentsMap)
+
+        // Clear the input
+        const newCommentInputMap = new Map(newCommentMap)
+        newCommentInputMap.set(postId, '')
+        setNewCommentMap(newCommentInputMap)
+
+        // Update posts count
+        setPosts(prevPosts => 
+          prevPosts.map(post => {
+            if (post.id === postId) {
+              return {
+                ...post,
+                comments_count: post.comments_count + 1
+              }
+            }
+            return post
+          })
+        )
+      }
+    } catch (error) {
+      console.error('Error creating comment:', error)
+    } finally {
+      const newSubmittingMap = new Map(submittingCommentMap)
+      newSubmittingMap.set(postId, false)
+      setSubmittingCommentMap(newSubmittingMap)
+    }
+  }
+
+  // Update comment input
+  const updateCommentInput = (postId: string, value: string) => {
+    const newCommentInputMap = new Map(newCommentMap)
+    newCommentInputMap.set(postId, value)
+    setNewCommentMap(newCommentInputMap)
+  }
+
   // Load posts on component mount
   useEffect(() => {
     const loadPosts = async () => {
@@ -207,6 +327,32 @@ export default function CareerStoryPlatform() {
 
     loadPosts()
   }, [])
+
+  // Load like status for posts when user is authenticated
+  useEffect(() => {
+    const loadLikeStatuses = async () => {
+      if (!user || posts.length === 0) return
+
+      const newLikesMap = new Map(likesMap)
+      
+      for (const post of posts) {
+        if (!likesMap.has(post.id)) {
+          try {
+            const result = await checkLikeStatus(post.id, user.id)
+            if ('liked' in result) {
+              newLikesMap.set(post.id, result.liked)
+            }
+          } catch (error) {
+            console.error('Error checking like status:', error)
+          }
+        }
+      }
+      
+      setLikesMap(newLikesMap)
+    }
+
+    loadLikeStatuses()
+  }, [user, posts])
 
   // Category mapping for API
   const getCategoryForAPI = (category: string) => {
@@ -608,15 +754,25 @@ export default function CareerStoryPlatform() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="gap-2 text-gray-500 hover:text-rose-500 hover:bg-rose-50"
+                          onClick={() => handleLikeToggle(story.id)}
+                          className={`gap-2 transition-colors ${
+                            likesMap.get(story.id) 
+                              ? 'text-rose-500 bg-rose-50 hover:text-rose-600 hover:bg-rose-100' 
+                              : 'text-gray-500 hover:text-rose-500 hover:bg-rose-50'
+                          }`}
                         >
-                          <Heart className="w-4 h-4" />
+                          <Heart className={`w-4 h-4 ${likesMap.get(story.id) ? 'fill-current' : ''}`} />
                           {story.likes_count}
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="gap-2 text-gray-500 hover:text-blue-500 hover:bg-blue-50"
+                          onClick={() => toggleComments(story.id)}
+                          className={`gap-2 transition-colors ${
+                            showCommentsMap.get(story.id) 
+                              ? 'text-blue-500 bg-blue-50 hover:text-blue-600 hover:bg-blue-100' 
+                              : 'text-gray-500 hover:text-blue-500 hover:bg-blue-50'
+                          }`}
                         >
                           <MessageCircle className="w-4 h-4" />
                           {story.comments_count}
@@ -649,6 +805,75 @@ export default function CareerStoryPlatform() {
                       </div>
                     </div>
                   </CardFooter>
+                  
+                  {/* コメントセクション */}
+                  {showCommentsMap.get(story.id) && (
+                    <div className="border-t border-gray-100 bg-gray-50/50 p-4 space-y-4">
+                      {/* コメント入力フォーム */}
+                      {user && (
+                        <div className="flex gap-3">
+                          <Avatar className="border-2 border-green-200 flex-shrink-0">
+                            <AvatarImage src={user.user_metadata?.avatar_url} />
+                            <AvatarFallback>{(user.user_metadata?.name || user.email || 'U')[0]}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 space-y-2">
+                            <Textarea
+                              placeholder="コメントを追加..."
+                              value={newCommentMap.get(story.id) || ''}
+                              onChange={(e) => updateCommentInput(story.id, e.target.value)}
+                              className="min-h-[80px] border-gray-200 focus:border-emerald-300 focus:ring-emerald-200"
+                              maxLength={1000}
+                            />
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-gray-500">
+                                {(newCommentMap.get(story.id) || '').length}/1000
+                              </span>
+                              <Button
+                                size="sm"
+                                onClick={() => handleCommentSubmit(story.id)}
+                                disabled={submittingCommentMap.get(story.id) || !(newCommentMap.get(story.id) || '').trim()}
+                                className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600"
+                              >
+                                {submittingCommentMap.get(story.id) ? '投稿中...' : 'コメント'}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* コメントリスト */}
+                      <div className="space-y-3">
+                        {(commentsMap.get(story.id) || []).map((comment) => (
+                          <div key={comment.id} className="flex gap-3 bg-white rounded-lg p-3 border border-gray-100">
+                            <Avatar className="border-2 border-green-200 flex-shrink-0">
+                              <AvatarImage src={comment.users?.avatar_url || "/placeholder.svg"} />
+                              <AvatarFallback>{(comment.users?.name || comment.users?.username || 'U')[0]}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm text-gray-800">
+                                  {comment.users?.name || comment.users?.username || 'Unknown User'}
+                                </span>
+                                {comment.users?.is_premium && <Crown className="w-3 h-3 text-emerald-500" />}
+                                <span className="text-xs text-gray-500">
+                                  {new Date(comment.created_at).toLocaleDateString('ja-JP')}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                {comment.content}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {(commentsMap.get(story.id) || []).length === 0 && (
+                          <div className="text-center py-4">
+                            <p className="text-gray-500 text-sm">まだコメントがありません</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </Card>
                 ))
               )}
