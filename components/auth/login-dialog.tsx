@@ -50,7 +50,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         setEmail('')
         setPassword('')
       }
-    } catch (error) {
+    } catch (_error) { // eslint-disable-line @typescript-eslint/no-unused-vars
       setMessage('ログイン中にエラーが発生しました')
     } finally {
       setLoading(false)
@@ -85,7 +85,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       } else {
         setMessage('確認メールを送信しました。メールをご確認ください。')
       }
-    } catch (error) {
+    } catch (_error) { // eslint-disable-line @typescript-eslint/no-unused-vars
       setMessage('アカウント作成中にエラーが発生しました')
     } finally {
       setLoading(false)
@@ -105,7 +105,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       if (error) {
         setMessage(error.message)
       }
-    } catch (error) {
+    } catch (_error) { // eslint-disable-line @typescript-eslint/no-unused-vars
       setMessage('GitHubログインでエラーが発生しました')
     } finally {
       setLoading(false)
@@ -125,7 +125,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       if (error) {
         setMessage(error.message)
       }
-    } catch (error) {
+    } catch (_error) { // eslint-disable-line @typescript-eslint/no-unused-vars
       setMessage('Googleログインでエラーが発生しました')
     } finally {
       setLoading(false)

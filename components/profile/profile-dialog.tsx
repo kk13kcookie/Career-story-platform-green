@@ -51,7 +51,7 @@ export function ProfileDialog({ userId, trigger }: ProfileDialogProps) {
     if (open) {
       loadProfile()
     }
-  }, [open])
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadProfile = async () => {
     try {

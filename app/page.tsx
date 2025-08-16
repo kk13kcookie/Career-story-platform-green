@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { createPost, fetchPosts, toggleLike, checkLikeStatus, createComment, fetchComments, updateComment, deleteComment, updatePost, deletePost, type Post, type Comment, type UpdatePostData } from "@/lib/api/posts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -133,6 +133,11 @@ function CareerStoryPlatform() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [submittingPost, setSubmittingPost] = useState(false)
+  
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedFilter, setSelectedFilter] = useState('すべて')
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'likes'>('newest')
   
   // Like and comment functionality
   const [likesMap, setLikesMap] = useState<Map<string, boolean>>(new Map())
@@ -585,7 +590,7 @@ function CareerStoryPlatform() {
     }
 
     loadLikeStatuses()
-  }, [user, posts])
+  }, [user, posts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Category mapping for API
   const getCategoryForAPI = (category: string) => {
@@ -596,6 +601,53 @@ function CareerStoryPlatform() {
       default: return "success"
     }
   }
+
+  // Category mapping from API to display
+  const getCategoryDisplayName = (category: string) => {
+    switch (category) {
+      case "success": return "成功体験"
+      case "failure": return "失敗談"
+      case "advice": return "アドバイス"
+      default: return "成功体験"
+    }
+  }
+
+  // Filter and search logic
+  const filteredAndSortedPosts = React.useMemo(() => {
+    let filtered = posts
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter(post => 
+        post.title.toLowerCase().includes(query) ||
+        post.content.toLowerCase().includes(query) ||
+        (post.tags && post.tags.some(tag => tag.toLowerCase().includes(query))) ||
+        (post.users?.name && post.users.name.toLowerCase().includes(query)) ||
+        (post.users?.username && post.users.username.toLowerCase().includes(query))
+      )
+    }
+
+    // Filter by category
+    if (selectedFilter !== 'すべて') {
+      const apiCategory = getCategoryForAPI(selectedFilter)
+      filtered = filtered.filter(post => post.category === apiCategory)
+    }
+
+    // Sort posts
+    return [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case 'oldest':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        case 'likes':
+          return b.likes_count - a.likes_count
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      }
+    })
+  }, [posts, searchQuery, selectedFilter, sortBy])
 
   // Handle post submission
   const handleSubmitPost = async () => {
@@ -697,6 +749,8 @@ function CareerStoryPlatform() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
                   placeholder="ストーリーを検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 w-64 bg-white/50 border-green-200 focus:border-emerald-400"
                 />
               </div>
@@ -771,8 +825,13 @@ function CareerStoryPlatform() {
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-gray-800">キャリアストーリー</h2>
                     <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
-                      {posts.length} 件
+                      {filteredAndSortedPosts.length} 件
                     </Badge>
+                    {searchQuery && (
+                      <Badge variant="outline" className="text-gray-600">
+                        &quot;{searchQuery}&quot; で検索中
+                      </Badge>
+                    )}
                   </div>
                   <Button
                     onClick={() => user ? setShowPostForm(!showPostForm) : setShowLoginDialog(true)}
@@ -781,6 +840,85 @@ function CareerStoryPlatform() {
                     <Plus className="w-4 h-4 mr-2" />
                     投稿
                   </Button>
+                </div>
+                
+                {/* フィルターとソート */}
+                <div className="flex flex-col lg:flex-row gap-4">
+                  {/* カテゴリフィルター */}
+                  <div className="flex flex-wrap gap-2">
+                    {['すべて', '成功体験', '失敗談', 'アドバイス'].map((category) => (
+                      <Button
+                        key={category}
+                        variant={selectedFilter === category ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedFilter(category)}
+                        className={
+                          selectedFilter === category
+                            ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white"
+                            : "border-green-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-600"
+                        }
+                      >
+                        {getCategoryIcon(category)}
+                        <span className="ml-1">{category}</span>
+                      </Button>
+                    ))}
+                  </div>
+                  
+                  {/* ソート */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 whitespace-nowrap">並び順:</span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant={sortBy === 'newest' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSortBy('newest')}
+                        className={
+                          sortBy === 'newest'
+                            ? "bg-emerald-500 text-white"
+                            : "border-gray-300 text-gray-600 hover:border-emerald-400"
+                        }
+                      >
+                        新着順
+                      </Button>
+                      <Button
+                        variant={sortBy === 'likes' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSortBy('likes')}
+                        className={
+                          sortBy === 'likes'
+                            ? "bg-emerald-500 text-white"
+                            : "border-gray-300 text-gray-600 hover:border-emerald-400"
+                        }
+                      >
+                        人気順
+                      </Button>
+                      <Button
+                        variant={sortBy === 'oldest' ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSortBy('oldest')}
+                        className={
+                          sortBy === 'oldest'
+                            ? "bg-emerald-500 text-white"
+                            : "border-gray-300 text-gray-600 hover:border-emerald-400"
+                        }
+                      >
+                        古い順
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* モバイル検索 */}
+                <div className="sm:hidden">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="ストーリーを検索..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 bg-white/50 border-green-200 focus:border-emerald-400"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -882,13 +1020,30 @@ function CareerStoryPlatform() {
                 <div className="flex justify-center py-8">
                   <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
-              ) : posts.length === 0 ? (
+              ) : filteredAndSortedPosts.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-500">まだ投稿がありません。最初の投稿をしてみませんか？</p>
+                  {searchQuery || selectedFilter !== 'すべて' ? (
+                    <div>
+                      <p className="text-gray-500 mb-2">検索条件に一致する投稿が見つかりません</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSearchQuery('')
+                          setSelectedFilter('すべて')
+                        }}
+                        className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
+                      >
+                        検索をリセット
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">まだ投稿がありません。最初の投稿をしてみませんか？</p>
+                  )}
                 </div>
               ) : (
                 <div>
-                  {posts.map((story) => (
+                  {filteredAndSortedPosts.map((story) => (
                     <Card
                   key={story.id}
                   className="border-green-100 shadow-lg hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm overflow-hidden group"
@@ -931,9 +1086,9 @@ function CareerStoryPlatform() {
                         }
                       />
                       <div className="flex items-center gap-2">
-                        <Badge className={`${getCategoryColor(story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス')} border`}>
-                          {getCategoryIcon(story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス')}
-                          <span className="ml-1">{story.category === 'success' ? '成功体験' : story.category === 'failure' ? '失敗談' : 'アドバイス'}</span>
+                        <Badge className={`${getCategoryColor(getCategoryDisplayName(story.category))} border`}>
+                          {getCategoryIcon(getCategoryDisplayName(story.category))}
+                          <span className="ml-1">{getCategoryDisplayName(story.category)}</span>
                         </Badge>
                         <Badge variant="outline" className="text-xs text-gray-500">
                           <Calendar className="w-3 h-3 mr-1" />
