@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { createPost, fetchPosts, toggleLike, checkLikeStatus, createComment, fetchComments, updateComment, deleteComment, type Post, type Comment } from "@/lib/api/posts"
+import { createPost, fetchPosts, toggleLike, checkLikeStatus, createComment, fetchComments, updateComment, deleteComment, updatePost, deletePost, type Post, type Comment, type UpdatePostData } from "@/lib/api/posts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
@@ -146,6 +146,12 @@ function CareerStoryPlatform() {
   const [editCommentContentMap, setEditCommentContentMap] = useState<Map<string, string>>(new Map())
   const [updatingCommentMap, setUpdatingCommentMap] = useState<Map<string, boolean>>(new Map())
   const [deletingCommentMap, setDeletingCommentMap] = useState<Map<string, boolean>>(new Map())
+
+  // Post editing and deleting functionality
+  const [editingPostMap, setEditingPostMap] = useState<Map<string, boolean>>(new Map())
+  const [editPostDataMap, setEditPostDataMap] = useState<Map<string, UpdatePostData>>(new Map())
+  const [updatingPostMap, setUpdatingPostMap] = useState<Map<string, boolean>>(new Map())
+  const [deletingPostMap, setDeletingPostMap] = useState<Map<string, boolean>>(new Map())
 
 
   const getCategoryIcon = (category: string) => {
@@ -422,6 +428,118 @@ function CareerStoryPlatform() {
     }
   }
 
+  // Start editing post
+  const startEditingPost = (postId: string, currentPost: Post) => {
+    const newEditingMap = new Map(editingPostMap)
+    const newDataMap = new Map(editPostDataMap)
+    newEditingMap.set(postId, true)
+    newDataMap.set(postId, {
+      title: currentPost.title,
+      content: currentPost.content,
+      category: currentPost.category as 'success' | 'failure' | 'advice',
+      tags: currentPost.tags,
+      career_level: currentPost.career_level || undefined,
+      career_stage: currentPost.career_stage || undefined
+    })
+    setEditingPostMap(newEditingMap)
+    setEditPostDataMap(newDataMap)
+  }
+
+  // Cancel editing post
+  const cancelEditingPost = (postId: string) => {
+    const newEditingMap = new Map(editingPostMap)
+    const newDataMap = new Map(editPostDataMap)
+    newEditingMap.delete(postId)
+    newDataMap.delete(postId)
+    setEditingPostMap(newEditingMap)
+    setEditPostDataMap(newDataMap)
+  }
+
+  // Update edit post data
+  const updateEditPostData = (postId: string, field: keyof UpdatePostData, value: string) => {
+    const newDataMap = new Map(editPostDataMap)
+    const currentData = newDataMap.get(postId)
+    if (currentData) {
+      newDataMap.set(postId, { ...currentData, [field]: value })
+      setEditPostDataMap(newDataMap)
+    }
+  }
+
+  // Handle post update
+  const handlePostUpdate = async (postId: string) => {
+    if (!user) return
+
+    const updatedData = editPostDataMap.get(postId)
+    if (!updatedData || !updatedData.title.trim() || !updatedData.content.trim()) return
+
+    const newUpdatingMap = new Map(updatingPostMap)
+    newUpdatingMap.set(postId, true)
+    setUpdatingPostMap(newUpdatingMap)
+
+    try {
+      const result = await updatePost(postId, { ...updatedData, user_id: user.id })
+      if ('post' in result) {
+        // Update post in the list
+        setPosts(prevPosts => 
+          prevPosts.map(post => post.id === postId ? result.post : post)
+        )
+
+        // Cancel editing mode
+        cancelEditingPost(postId)
+      } else {
+        console.error('Error updating post:', result.error)
+        alert('投稿の更新に失敗しました。もう一度お試しください。')
+      }
+    } catch (error) {
+      console.error('Error updating post:', error)
+      alert('投稿の更新中にエラーが発生しました。')
+    } finally {
+      const newUpdatingMap = new Map(updatingPostMap)
+      newUpdatingMap.set(postId, false)
+      setUpdatingPostMap(newUpdatingMap)
+    }
+  }
+
+  // Handle post deletion
+  const handlePostDelete = async (postId: string) => {
+    if (!user) return
+    
+    if (!confirm('この投稿を削除しますか？この操作は取り消せません。')) return
+
+    const newDeletingMap = new Map(deletingPostMap)
+    newDeletingMap.set(postId, true)
+    setDeletingPostMap(newDeletingMap)
+
+    try {
+      const result = await deletePost(postId, user.id)
+      if ('success' in result) {
+        // Remove post from the list
+        setPosts(prevPosts => prevPosts.filter(post => post.id !== postId))
+        
+        // Clean up related state
+        const newLikesMap = new Map(likesMap)
+        const newCommentsMap = new Map(commentsMap)
+        const newShowCommentsMap = new Map(showCommentsMap)
+        newLikesMap.delete(postId)
+        newCommentsMap.delete(postId)
+        newShowCommentsMap.delete(postId)
+        setLikesMap(newLikesMap)
+        setCommentsMap(newCommentsMap)
+        setShowCommentsMap(newShowCommentsMap)
+      } else {
+        console.error('Error deleting post:', result.error)
+        alert('投稿の削除に失敗しました。もう一度お試しください。')
+      }
+    } catch (error) {
+      console.error('Error deleting post:', error)
+      alert('投稿の削除中にエラーが発生しました。')
+    } finally {
+      const newDeletingMap = new Map(deletingPostMap)
+      newDeletingMap.set(postId, false)
+      setDeletingPostMap(newDeletingMap)
+    }
+  }
+
 
   // Load posts on component mount
   useEffect(() => {
@@ -445,6 +563,7 @@ function CareerStoryPlatform() {
       if (!user || posts.length === 0) return
 
       const newLikesMap = new Map(likesMap)
+      let hasChanges = false
       
       for (const post of posts) {
         if (!likesMap.has(post.id)) {
@@ -452,6 +571,7 @@ function CareerStoryPlatform() {
             const result = await checkLikeStatus(post.id, user.id)
             if ('liked' in result) {
               newLikesMap.set(post.id, result.liked)
+              hasChanges = true
             }
           } catch (error) {
             console.error('Error checking like status:', error)
@@ -459,11 +579,13 @@ function CareerStoryPlatform() {
         }
       }
       
-      setLikesMap(newLikesMap)
+      if (hasChanges) {
+        setLikesMap(newLikesMap)
+      }
     }
 
     loadLikeStatuses()
-  }, [user, posts, likesMap])
+  }, [user, posts])
 
   // Category mapping for API
   const getCategoryForAPI = (category: string) => {
@@ -817,45 +939,156 @@ function CareerStoryPlatform() {
                           <Calendar className="w-3 h-3 mr-1" />
                           {story.read_time}分
                         </Badge>
+                        {/* 投稿操作メニュー（自分の投稿のみ） */}
+                        {user && story.user_id === user.id && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => startEditingPost(story.id, story)}
+                                disabled={editingPostMap.get(story.id)}
+                              >
+                                <Edit3 className="w-4 h-4 mr-2" />
+                                編集
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handlePostDelete(story.id)}
+                                disabled={deletingPostMap.get(story.id)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                {deletingPostMap.get(story.id) ? '削除中...' : '削除'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
 
                   <CardContent className="pt-0">
-                    <div className="mb-3">
-                      <h3 className="font-semibold text-lg text-gray-800 mb-2 group-hover:text-emerald-600 transition-colors">
-                        {story.title}
-                      </h3>
-                    </div>
+                    {/* 投稿内容または編集フォーム */}
+                    {editingPostMap.get(story.id) ? (
+                      <div className="space-y-4">
+                        {/* タイトル編集 */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">タイトル</label>
+                          <Input
+                            value={editPostDataMap.get(story.id)?.title || ''}
+                            onChange={(e) => updateEditPostData(story.id, 'title', e.target.value)}
+                            className="border-gray-200 focus:border-emerald-300"
+                            placeholder="投稿のタイトル..."
+                            maxLength={200}
+                          />
+                          <div className="text-xs text-gray-500">
+                            {editPostDataMap.get(story.id)?.title?.length || 0}/200文字
+                          </div>
+                        </div>
 
-                    <div className="text-gray-700 leading-relaxed whitespace-pre-line mb-4">
-                      {expandedPosts.has(story.id) ? story.content : truncateText(story.content)}
-                    </div>
+                        {/* カテゴリ編集 */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">カテゴリ</label>
+                          <div className="flex gap-2">
+                            {["success", "failure", "advice"].map((category) => (
+                              <Button
+                                key={category}
+                                variant={editPostDataMap.get(story.id)?.category === category ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => updateEditPostData(story.id, 'category', category)}
+                                className={
+                                  editPostDataMap.get(story.id)?.category === category
+                                    ? "bg-gradient-to-r from-emerald-500 to-green-500 text-white"
+                                    : "border-green-200 text-gray-600 hover:border-emerald-400"
+                                }
+                              >
+                                {getCategoryIcon(category === 'success' ? '成功体験' : category === 'failure' ? '失敗談' : 'アドバイス')}
+                                <span className="ml-1">{category === 'success' ? '成功体験' : category === 'failure' ? '失敗談' : 'アドバイス'}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
 
-                    {shouldShowExpandButton(story.content) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleExpanded(story.id)}
-                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-0 h-auto font-medium"
-                      >
-                        {expandedPosts.has(story.id) ? "折りたたむ" : "続きを読む"}
-                      </Button>
-                    )}
+                        {/* 内容編集 */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700">内容</label>
+                          <Textarea
+                            value={editPostDataMap.get(story.id)?.content || ''}
+                            onChange={(e) => updateEditPostData(story.id, 'content', e.target.value)}
+                            className="min-h-[120px] border-gray-200 focus:border-emerald-300"
+                            placeholder="投稿の内容..."
+                            maxLength={5000}
+                          />
+                          <div className="text-xs text-gray-500">
+                            {editPostDataMap.get(story.id)?.content?.length || 0}/5000文字
+                          </div>
+                        </div>
 
-                    {/* タグ */}
-                    {story.tags && story.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        {story.tags.map((tag, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="bg-gray-100 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer transition-colors"
+                        {/* 編集ボタン */}
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handlePostUpdate(story.id)}
+                            disabled={
+                              !editPostDataMap.get(story.id)?.title?.trim() ||
+                              !editPostDataMap.get(story.id)?.content?.trim() ||
+                              updatingPostMap.get(story.id)
+                            }
+                            className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600"
                           >
-                            #{tag}
-                          </Badge>
-                        ))}
+                            {updatingPostMap.get(story.id) ? '更新中...' : '更新'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => cancelEditingPost(story.id)}
+                            disabled={updatingPostMap.get(story.id)}
+                          >
+                            キャンセル
+                          </Button>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <div className="mb-3">
+                          <h3 className="font-semibold text-lg text-gray-800 mb-2 group-hover:text-emerald-600 transition-colors">
+                            {story.title}
+                          </h3>
+                        </div>
+
+                        <div className="text-gray-700 leading-relaxed whitespace-pre-line mb-4">
+                          {expandedPosts.has(story.id) ? story.content : truncateText(story.content)}
+                        </div>
+
+                        {shouldShowExpandButton(story.content) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleExpanded(story.id)}
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-0 h-auto font-medium"
+                          >
+                            {expandedPosts.has(story.id) ? "折りたたむ" : "続きを読む"}
+                          </Button>
+                        )}
+
+                        {/* タグ */}
+                        {story.tags && story.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            {story.tags.map((tag, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="bg-gray-100 text-gray-600 hover:bg-emerald-100 hover:text-emerald-700 cursor-pointer transition-colors"
+                              >
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
 

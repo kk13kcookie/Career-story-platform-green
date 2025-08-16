@@ -233,3 +233,58 @@ export async function deleteComment(commentId: string, userId: string): Promise<
     return { error: 'Network error occurred' }
   }
 }
+
+// Post editing and deletion functionality
+export interface UpdatePostData {
+  title: string
+  content: string
+  category: 'success' | 'failure' | 'advice'
+  tags?: string[]
+  career_level?: string
+  career_stage?: string
+}
+
+export async function updatePost(postId: string, data: UpdatePostData & { user_id: string }): Promise<{ post: Post } | { error: string }> {
+  try {
+    const response = await fetch(`/api/posts/${postId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to update post' }
+    }
+
+    return { post: result.post }
+  } catch (error) {
+    console.error('Error updating post:', error)
+    return { error: 'Network error occurred' }
+  }
+}
+
+export async function deletePost(postId: string, userId: string): Promise<{ success: boolean } | { error: string }> {
+  try {
+    const response = await fetch(`/api/posts/${postId}?user_id=${userId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to delete post' }
+    }
+
+    return { success: result.success }
+  } catch (error) {
+    console.error('Error deleting post:', error)
+    return { error: 'Network error occurred' }
+  }
+}
